@@ -1,38 +1,171 @@
-.App {
-    text-align: center;
+/* Custom animations and additional styles */
+@keyframes pulse-red {
+  0%, 100% {
+    background-color: rgba(239, 68, 68, 0.1);
+  }
+  50% {
+    background-color: rgba(239, 68, 68, 0.2);
+  }
 }
 
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+@keyframes scan-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.scan-pulse {
+  animation: pulse-red 2s ease-in-out infinite;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.progress-bar {
+  position: relative;
+  overflow: hidden;
 }
 
-.App-link {
-    color: #61dafb;
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 20%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: scan-progress 2s ease-in-out infinite;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+/* Vulnerability severity indicators */
+.severity-critical {
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.severity-high {
+  box-shadow: 0 0 8px rgba(251, 146, 60, 0.3);
+}
+
+.severity-medium {
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.3);
+}
+
+.severity-low {
+  box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
+}
+
+/* Tool status indicators */
+.tool-ready {
+  border: 1px solid #10B981;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+}
+
+.tool-missing {
+  border: 1px solid #EF4444;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+}
+
+/* Scan button animations */
+.scan-button {
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #DC2626, #B91C1C);
+}
+
+.scan-button:hover {
+  background: linear-gradient(135deg, #B91C1C, #991B1B);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(220, 38, 38, 0.3);
+}
+
+.scan-button:active {
+  transform: translateY(0);
+}
+
+/* Results animations */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Vulnerability card hover effects */
+.vuln-card {
+  transition: all 0.2s ease;
+}
+
+.vuln-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Loading spinner customization */
+.loading-spinner {
+  border-color: transparent;
+  border-top-color: #EF4444;
+  border-right-color: #EF4444;
+}
+
+/* Progress bar glow effect */
+.progress-glow {
+  background: linear-gradient(90deg, #DC2626, #F97316, #EAB308);
+  box-shadow: 0 0 20px rgba(220, 38, 38, 0.5);
+}
+
+/* Terminal-like font for raw output */
+.terminal-output {
+  font-family: 'Courier New', monospace;
+  background: #111827;
+  color: #10B981;
+  border: 1px solid #374151;
+}
+
+/* Responsive grid improvements */
+@media (max-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6B7280;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* Status badge animations */
+.status-badge {
+  animation: fadeIn 0.3s ease-in;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.8));
+}
+
+/* Error states */
+.error-state {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Success states */
+.success-state {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05));
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
