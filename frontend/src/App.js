@@ -5,12 +5,16 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'
 
 function App() {
   const [target, setTarget] = useState('');
+  const [includeSubdomains, setIncludeSubdomains] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [scanId, setScanId] = useState(null);
   const [results, setResults] = useState(null);
   const [toolsStatus, setToolsStatus] = useState(null);
   const [progress, setProgress] = useState(0);
   const [scanStatus, setScanStatus] = useState('');
+  const [activeTab, setActiveTab] = useState('vulnerabilities');
+  const [selectedVuln, setSelectedVuln] = useState(null);
+  const [exploitationData, setExploitationData] = useState(null);
 
   useEffect(() => {
     fetchToolsStatus();
@@ -47,7 +51,8 @@ function App() {
     setScanning(true);
     setResults(null);
     setProgress(0);
-    setScanStatus('Initializing scan...');
+    setScanStatus('Initializing comprehensive scan...');
+    setActiveTab('vulnerabilities');
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/scan`, {
@@ -57,7 +62,8 @@ function App() {
         },
         body: JSON.stringify({
           url: target,
-          scan_type: 'comprehensive'
+          scan_type: 'comprehensive',
+          include_subdomains: includeSubdomains
         }),
       });
 
@@ -90,13 +96,24 @@ function App() {
     }
   };
 
+  const fetchExploitationGuidance = async (vulnIndex) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/scan/${scanId}/exploitation/${vulnIndex}`);
+      const data = await response.json();
+      setExploitationData(data);
+      setSelectedVuln(vulnIndex);
+    } catch (error) {
+      console.error('Error fetching exploitation guidance:', error);
+    }
+  };
+
   const getSeverityColor = (severity) => {
     switch (severity) {
-      case 'Critical': return 'text-red-600 bg-red-100';
-      case 'High': return 'text-orange-600 bg-orange-100';
-      case 'Medium': return 'text-yellow-600 bg-yellow-100';
-      case 'Low': return 'text-blue-600 bg-blue-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'Critical': return 'text-red-600 bg-red-100 border-red-300';
+      case 'High': return 'text-orange-600 bg-orange-100 border-orange-300';
+      case 'Medium': return 'text-yellow-600 bg-yellow-100 border-yellow-300';
+      case 'Low': return 'text-blue-600 bg-blue-100 border-blue-300';
+      default: return 'text-gray-600 bg-gray-100 border-gray-300';
     }
   };
 
@@ -105,13 +122,103 @@ function App() {
       nmap: '🌐',
       nikto: '🔍',
       dirb: '📁',
+      gobuster: '⚡',
       sqlmap: '💉',
       whatweb: '🕷️',
       subfinder: '🔎',
-      gobuster: '⚡',
       sslscan: '🔐'
     };
     return icons[tool] || '🔧';
+  };
+
+  const ExploitationModal = () => {
+    if (!exploitationData) return null;
+
+    const { vulnerability, exploitation } = exploitationData;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-800 rounded-lg max-w-4xl w-full max-h-full overflow-y-auto">
+          {/* Header */}
+          <div className="p-6 border-b border-gray-700">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white flex items-center">
+                <span className="text-3xl mr-3">🎯</span>
+                Exploitation Guidance
+              </h2>
+              <button
+                onClick={() => setExploitationData(null)}
+                className="text-gray-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 space-y-6">
+            {/* Vulnerability Info */}
+            <div className="bg-gray-700 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-white mb-2">Vulnerability Details</h3>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSeverityColor(vulnerability.severity)}`}>
+                    {vulnerability.severity}
+                  </span>
+                  <span className="text-sm bg-gray-600 px-2 py-1 rounded text-white">
+                    {getToolIcon(vulnerability.tool)} {vulnerability.tool}
+                  </span>
+                </div>
+                <p className="text-gray-300">{vulnerability.description}</p>
+                {vulnerability.url && (
+                  <p className="text-blue-400 text-sm break-all">{vulnerability.url}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Exploitation Details */}
+            <div className="bg-gray-700 rounded-lg p-4">
+              <h3 className="text-xl font-semibold text-white mb-4">{exploitation.title}</h3>
+              <p className="text-gray-300 mb-4">{exploitation.description}</p>
+              
+              {/* Impact */}
+              <div className="mb-4">
+                <h4 className="text-lg font-semibold text-red-400 mb-2">🚨 Potential Impact</h4>
+                <p className="text-gray-300 bg-red-900 bg-opacity-30 p-3 rounded">{exploitation.impact}</p>
+              </div>
+
+              {/* Manual Steps */}
+              <div className="mb-4">
+                <h4 className="text-lg font-semibold text-yellow-400 mb-2">📋 Manual Exploitation Steps</h4>
+                <div className="bg-gray-800 p-4 rounded">
+                  {exploitation.manual_steps.map((step, index) => (
+                    <div key={index} className="mb-2 text-gray-300">{step}</div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Automated Tools */}
+              <div className="mb-4">
+                <h4 className="text-lg font-semibold text-green-400 mb-2">🤖 Automated Tools & Commands</h4>
+                <div className="bg-gray-900 p-4 rounded font-mono text-sm">
+                  {exploitation.automated_tools.map((tool, index) => (
+                    <div key={index} className="mb-2 text-green-300">
+                      <span className="text-gray-500">$ </span>{tool}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Remediation */}
+              <div>
+                <h4 className="text-lg font-semibold text-blue-400 mb-2">🛡️ Remediation</h4>
+                <p className="text-gray-300 bg-blue-900 bg-opacity-30 p-3 rounded">{exploitation.remediation}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -121,10 +228,10 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="text-2xl">🛡️</div>
+              <div className="text-3xl">🛡️</div>
               <div>
-                <h1 className="text-2xl font-bold text-white">VulnScanner</h1>
-                <p className="text-sm text-gray-400">Comprehensive Vulnerability Scanner</p>
+                <h1 className="text-3xl font-bold text-white">VulnScanner Pro</h1>
+                <p className="text-sm text-gray-400">Advanced Vulnerability Scanner with Exploitation Guidance</p>
               </div>
             </div>
             <div className="text-right">
@@ -141,12 +248,12 @@ function App() {
           <div className="mb-8 bg-gray-800 rounded-lg p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
               <span className="text-xl mr-2">🔧</span>
-              Security Tools Status
+              Security Tools Arsenal
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
               {Object.entries(toolsStatus.tools).map(([tool, available]) => (
-                <div key={tool} className={`p-3 rounded-lg text-center ${
-                  available ? 'bg-green-900 border border-green-700' : 'bg-red-900 border border-red-700'
+                <div key={tool} className={`p-3 rounded-lg text-center transition-all ${
+                  available ? 'bg-green-900 border border-green-700 hover:bg-green-800' : 'bg-red-900 border border-red-700'
                 }`}>
                   <div className="text-2xl mb-1">{getToolIcon(tool)}</div>
                   <div className="text-sm font-medium">{tool}</div>
@@ -157,12 +264,12 @@ function App() {
               ))}
             </div>
             <div className="mt-4 text-sm text-gray-400">
-              {toolsStatus.available_tools} of {toolsStatus.total_tools} tools available
+              {toolsStatus.available_tools} of {toolsStatus.total_tools} tools ready for engagement
             </div>
           </div>
         )}
 
-        {/* Scan Input */}
+        {/* Scan Configuration */}
         <div className="bg-gray-800 rounded-lg p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <span className="text-xl mr-2">🎯</span>
@@ -183,6 +290,20 @@ function App() {
                 disabled={scanning}
               />
             </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="subdomains"
+                checked={includeSubdomains}
+                onChange={(e) => setIncludeSubdomains(e.target.checked)}
+                disabled={scanning}
+                className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="subdomains" className="text-sm text-gray-300">
+                Include subdomain enumeration
+              </label>
+            </div>
             
             <button
               onClick={startScan}
@@ -190,7 +311,7 @@ function App() {
               className={`w-full py-3 px-6 rounded-lg font-semibold text-lg ${
                 scanning || !target.trim()
                   ? 'bg-gray-600 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-700 transform hover:scale-105'
+                  : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 transform hover:scale-105'
               } transition-all duration-200`}
             >
               {scanning ? (
@@ -201,7 +322,7 @@ function App() {
               ) : (
                 <div className="flex items-center justify-center space-x-2">
                   <span>🚀</span>
-                  <span>Start Comprehensive Scan</span>
+                  <span>Launch Comprehensive Attack</span>
                 </div>
               )}
             </button>
@@ -213,15 +334,17 @@ function App() {
           <div className="bg-gray-800 rounded-lg p-6 mb-8">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
               <span className="text-xl mr-2">⏳</span>
-              Scan Progress
+              Attack Progress
             </h3>
             
             <div className="space-y-4">
-              <div className="w-full bg-gray-700 rounded-full h-3">
+              <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
                 <div 
-                  className="bg-gradient-to-r from-red-500 to-orange-500 h-3 rounded-full transition-all duration-300"
+                  className="bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 h-4 rounded-full transition-all duration-300 relative"
                   style={{ width: `${progress}%` }}
-                ></div>
+                >
+                  <div className="absolute inset-0 bg-white opacity-30 animate-pulse"></div>
+                </div>
               </div>
               
               <div className="flex justify-between text-sm">
@@ -235,96 +358,154 @@ function App() {
         {/* Results */}
         {results && (
           <div className="space-y-8">
-            {/* Summary */}
+            {/* Summary Dashboard */}
             <div className="bg-gray-800 rounded-lg p-6">
               <h3 className="text-xl font-semibold mb-4 flex items-center">
                 <span className="text-xl mr-2">📊</span>
-                Scan Summary
+                Attack Summary
               </h3>
               
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                 {Object.entries(results.summary.severity_breakdown).map(([severity, count]) => (
-                  <div key={severity} className={`p-4 rounded-lg ${getSeverityColor(severity)}`}>
-                    <div className="text-2xl font-bold">{count}</div>
+                  <div key={severity} className={`p-4 rounded-lg border ${getSeverityColor(severity)} transition-transform hover:scale-105`}>
+                    <div className="text-3xl font-bold">{count}</div>
                     <div className="text-sm font-medium">{severity}</div>
                   </div>
                 ))}
               </div>
               
-              <div className="text-sm text-gray-400">
-                <div>Total Issues Found: {results.summary.total_vulnerabilities}</div>
-                <div>Scan completed: {new Date(results.end_time).toLocaleString()}</div>
-                <div>Target: {results.target}</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-400">
+                <div>Total Issues: <span className="text-white font-semibold">{results.summary.total_vulnerabilities}</span></div>
+                <div>Subdomains Found: <span className="text-white font-semibold">{results.summary.subdomain_count}</span></div>
+                <div>Scan Completed: <span className="text-white font-semibold">{new Date(results.end_time).toLocaleString()}</span></div>
               </div>
             </div>
 
-            {/* Vulnerabilities */}
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center">
-                <span className="text-xl mr-2">🔍</span>
-                Vulnerabilities & Findings
-              </h3>
-              
-              {results.vulnerabilities.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <div className="text-4xl mb-2">✅</div>
-                  <div>No vulnerabilities found!</div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {results.vulnerabilities.map((vuln, index) => (
-                    <div key={index} className="bg-gray-700 border border-gray-600 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-3">
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSeverityColor(vuln.severity)}`}>
-                            {vuln.severity}
-                          </span>
-                          <span className="text-sm bg-gray-600 px-2 py-1 rounded">
-                            {getToolIcon(vuln.tool)} {vuln.tool}
-                          </span>
+            {/* Navigation Tabs */}
+            <div className="bg-gray-800 rounded-lg">
+              <div className="border-b border-gray-700">
+                <nav className="flex space-x-8 px-6">
+                  {[
+                    { id: 'vulnerabilities', name: 'Vulnerabilities', icon: '🔍', count: results.vulnerabilities.length },
+                    { id: 'subdomains', name: 'Subdomains', icon: '🌐', count: results.subdomains?.length || 0 },
+                    { id: 'ports', name: 'Open Ports', icon: '🔌', count: results.results.nmap?.open_ports?.length || 0 }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`py-4 px-2 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                        activeTab === tab.id
+                          ? 'border-red-500 text-red-400'
+                          : 'border-transparent text-gray-400 hover:text-gray-300'
+                      }`}
+                    >
+                      <span>{tab.icon}</span>
+                      <span>{tab.name}</span>
+                      <span className="bg-gray-600 text-white text-xs px-2 py-1 rounded-full">{tab.count}</span>
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              <div className="p-6">
+                {/* Vulnerabilities Tab */}
+                {activeTab === 'vulnerabilities' && (
+                  <div className="space-y-4">
+                    {results.vulnerabilities.length === 0 ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <div className="text-4xl mb-2">✅</div>
+                        <div>No vulnerabilities detected!</div>
+                      </div>
+                    ) : (
+                      results.vulnerabilities.map((vuln, index) => (
+                        <div key={index} className="bg-gray-700 border border-gray-600 rounded-lg p-4 hover:bg-gray-650 transition-colors">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center space-x-3">
+                              <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getSeverityColor(vuln.severity)}`}>
+                                {vuln.severity}
+                              </span>
+                              <span className="text-sm bg-gray-600 px-2 py-1 rounded text-white">
+                                {getToolIcon(vuln.tool)} {vuln.tool}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm text-gray-400">{vuln.type}</span>
+                              <button
+                                onClick={() => fetchExploitationGuidance(index)}
+                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                              >
+                                🎯 Exploit
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="text-white mb-2">{vuln.description}</div>
+                          
+                          {vuln.url && (
+                            <div className="text-sm text-blue-400 break-all mb-2">{vuln.url}</div>
+                          )}
+                          
+                          {vuln.port && (
+                            <div className="text-sm text-gray-400">Port: {vuln.port}</div>
+                          )}
                         </div>
-                        <span className="text-sm text-gray-400">{vuln.type}</span>
-                      </div>
-                      
-                      <div className="text-white mb-2">{vuln.description}</div>
-                      
-                      {vuln.url && (
-                        <div className="text-sm text-blue-400 break-all">{vuln.url}</div>
-                      )}
-                      
-                      {vuln.port && (
-                        <div className="text-sm text-gray-400">Port: {vuln.port}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                      ))
+                    )}
+                  </div>
+                )}
 
-            {/* Open Ports */}
-            {results.results.nmap && results.results.nmap.open_ports && results.results.nmap.open_ports.length > 0 && (
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-4 flex items-center">
-                  <span className="text-xl mr-2">🔌</span>
-                  Open Ports
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {results.results.nmap.open_ports.map((port, index) => (
-                    <div key={index} className="bg-gray-700 border border-gray-600 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="text-lg font-semibold text-white">Port {port.port}</div>
-                        <div className="text-sm bg-blue-600 px-2 py-1 rounded">{port.protocol}</div>
+                {/* Subdomains Tab */}
+                {activeTab === 'subdomains' && (
+                  <div className="space-y-4">
+                    {results.subdomains?.length === 0 ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <div className="text-4xl mb-2">🌐</div>
+                        <div>No subdomains discovered</div>
                       </div>
-                      <div className="text-gray-400 mt-1">{port.service}</div>
-                    </div>
-                  ))}
-                </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {results.subdomains?.map((subdomain, index) => (
+                          <div key={index} className="bg-gray-700 border border-gray-600 rounded-lg p-4">
+                            <div className="text-white font-medium break-all">{subdomain}</div>
+                            <div className="text-sm text-gray-400 mt-1">Discovered subdomain</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Open Ports Tab */}
+                {activeTab === 'ports' && (
+                  <div className="space-y-4">
+                    {results.results.nmap?.open_ports?.length === 0 ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <div className="text-4xl mb-2">🔌</div>
+                        <div>No open ports detected</div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {results.results.nmap?.open_ports?.map((port, index) => (
+                          <div key={index} className="bg-gray-700 border border-gray-600 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-lg font-semibold text-white">Port {port.port}</div>
+                              <div className="text-sm bg-blue-600 px-2 py-1 rounded">{port.protocol}</div>
+                            </div>
+                            <div className="text-gray-400">{port.service}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>
+
+      {/* Exploitation Modal */}
+      <ExploitationModal />
 
       {/* Footer */}
       <footer className="bg-gray-800 border-t border-gray-700 mt-16">
