@@ -10,6 +10,7 @@ class VulnScannerAPITester:
         self.tests_run = 0
         self.tests_passed = 0
         self.scan_id = None
+        self.vuln_index = None
 
     def run_test(self, name, method, endpoint, expected_status, data=None):
         """Run a single API test"""
@@ -64,22 +65,37 @@ class VulnScannerAPITester:
             for tool, available in response['tools'].items():
                 status = "✅" if available else "❌"
                 print(f"  {status} {tool}")
+            
+            # Verify all 8 tools are available
+            expected_tools = ['nmap', 'nikto', 'dirb', 'sqlmap', 'whatweb', 'subfinder', 'gobuster', 'sslscan']
+            all_tools_available = all(response['tools'].get(tool, False) for tool in expected_tools)
+            if all_tools_available:
+                print("✅ All 8 security tools are available")
+            else:
+                print("❌ Not all security tools are available")
+                missing_tools = [tool for tool in expected_tools if not response['tools'].get(tool, False)]
+                print(f"  Missing tools: {', '.join(missing_tools)}")
         
         return success, response
 
-    def test_start_scan(self, target="scanme.nmap.org"):
+    def test_start_scan(self, target="scanme.nmap.org", include_subdomains=True):
         """Test starting a vulnerability scan"""
         success, response = self.run_test(
             "Start Scan Endpoint",
             "POST",
             "/api/scan",
             200,
-            data={"url": target, "scan_type": "comprehensive"}
+            data={
+                "url": target, 
+                "scan_type": "comprehensive", 
+                "include_subdomains": include_subdomains
+            }
         )
         
         if success and 'scan_id' in response:
             self.scan_id = response['scan_id']
             print(f"Scan started with ID: {self.scan_id}")
+            print(f"Subdomain enumeration enabled: {include_subdomains}")
         
         return success, response
 
@@ -104,6 +120,56 @@ class VulnScannerAPITester:
             "/api/scans",
             200
         )
+
+    def test_exploitation_guidance(self):
+        """Test exploitation guidance endpoint"""
+        if not self.scan_id or self.vuln_index is None:
+            print("❌ No scan ID or vulnerability index available for exploitation guidance")
+            return False, {}
+        
+        success, response = self.run_test(
+            "Exploitation Guidance Endpoint",
+            "GET",
+            f"/api/scan/{self.scan_id}/exploitation/{self.vuln_index}",
+            200
+        )
+        
+        if success:
+            print("\n🎯 Exploitation Guidance Details:")
+            
+            # Check for exploitation data structure
+            if 'exploitation' in response:
+                exploit_data = response['exploitation']
+                print(f"  Title: {exploit_data.get('title', 'N/A')}")
+                print(f"  Severity: {exploit_data.get('severity', 'N/A')}")
+                
+                # Check for manual steps
+                if 'manual_steps' in exploit_data and exploit_data['manual_steps']:
+                    print("  ✅ Manual exploitation steps provided")
+                else:
+                    print("  ❌ Manual exploitation steps missing")
+                
+                # Check for automated tools
+                if 'automated_tools' in exploit_data and exploit_data['automated_tools']:
+                    print("  ✅ Automated tool commands provided")
+                else:
+                    print("  ❌ Automated tool commands missing")
+                
+                # Check for impact assessment
+                if 'impact' in exploit_data and exploit_data['impact']:
+                    print("  ✅ Impact assessment provided")
+                else:
+                    print("  ❌ Impact assessment missing")
+                
+                # Check for remediation advice
+                if 'remediation' in exploit_data and exploit_data['remediation']:
+                    print("  ✅ Remediation advice provided")
+                else:
+                    print("  ❌ Remediation advice missing")
+            else:
+                print("  ❌ Exploitation data missing from response")
+        
+        return success, response
 
     def test_delete_scan(self):
         """Test deleting a scan"""
@@ -156,32 +222,56 @@ class VulnScannerAPITester:
         print("❌ Scan timed out")
         return False, {}
 
+    def check_subdomain_enumeration(self, scan_results):
+        """Check if subdomain enumeration worked"""
+        if 'subdomains' in scan_results and isinstance(scan_results['subdomains'], list):
+            print(f"\n🌐 Subdomain Enumeration Results:")
+            print(f"  Found {len(scan_results['subdomains'])} subdomains")
+            
+            # Print some subdomains if found
+            if scan_results['subdomains']:
+                for i, subdomain in enumerate(scan_results['subdomains'][:5]):  # Show first 5
+                    print(f"  {i+1}. {subdomain}")
+                
+                if len(scan_results['subdomains']) > 5:
+                    print(f"  ... and {len(scan_results['subdomains']) - 5} more")
+                
+                return True
+            else:
+                print("  No subdomains found (this might be normal depending on the target)")
+                return True
+        else:
+            print("❌ Subdomain enumeration data missing from scan results")
+            return False
+
 def main():
     # Setup
     tester = VulnScannerAPITester()
     
     # Run tests
-    print("🔰 Starting VulnScanner API Tests 🔰")
+    print("🔰 Starting Enhanced VulnScanner Pro API Tests 🔰")
     print(f"Base URL: {tester.base_url}")
     print("=" * 50)
     
     # Test root endpoint
     tester.test_root_endpoint()
     
-    # Test tools status
-    tester.test_tools_status()
+    # Test tools status - verify all 8 tools are available
+    tools_success, tools_response = tester.test_tools_status()
+    if not tools_success:
+        print("❌ Failed to get tools status, but continuing tests")
     
     # Test list scans (before starting a new one)
     tester.test_list_scans()
     
-    # Start a scan
-    scan_success, _ = tester.test_start_scan()
+    # Start a comprehensive scan with subdomain enumeration enabled
+    scan_success, _ = tester.test_start_scan(include_subdomains=True)
     if not scan_success:
         print("❌ Failed to start scan, stopping tests")
         return 1
     
     # Wait for scan to complete (with timeout)
-    completion_success, scan_results = tester.wait_for_scan_completion(timeout=120)
+    completion_success, scan_results = tester.wait_for_scan_completion(timeout=180)
     
     if completion_success:
         # Print scan results summary
@@ -191,15 +281,37 @@ def main():
             print("  Severity breakdown:")
             for severity, count in scan_results['summary']['severity_breakdown'].items():
                 print(f"    {severity}: {count}")
+            
+            # Check if all tools were used
+            if 'tools_used' in scan_results['summary']:
+                print(f"  Tools used: {', '.join(scan_results['summary']['tools_used'])}")
+        
+        # Check subdomain enumeration results
+        tester.check_subdomain_enumeration(scan_results)
         
         # Print some vulnerabilities if found
         if 'vulnerabilities' in scan_results and scan_results['vulnerabilities']:
             print("\n🔍 Sample Vulnerabilities Found:")
             for i, vuln in enumerate(scan_results['vulnerabilities'][:3]):  # Show first 3
                 print(f"  {i+1}. [{vuln.get('severity', 'Unknown')}] {vuln.get('description', 'No description')}")
+                
+                # Check if exploitation data is present
+                if 'exploitation' in vuln:
+                    print(f"    ✅ Has exploitation guidance")
+                else:
+                    print(f"    ❌ Missing exploitation guidance")
             
             if len(scan_results['vulnerabilities']) > 3:
                 print(f"  ... and {len(scan_results['vulnerabilities']) - 3} more")
+            
+            # Set a vulnerability index for exploitation guidance testing
+            if scan_results['vulnerabilities']:
+                tester.vuln_index = 0
+                
+                # Test exploitation guidance endpoint
+                tester.test_exploitation_guidance()
+        else:
+            print("\n⚠️ No vulnerabilities found in scan results")
     
     # Test delete scan
     tester.test_delete_scan()
