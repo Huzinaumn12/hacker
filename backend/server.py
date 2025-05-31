@@ -54,12 +54,29 @@ class VulnerabilityScanner:
             'sslscan': False
         }
         
-        for tool in tools.keys():
+        # Different commands to check tool availability
+        tool_commands = {
+            'nmap': ['nmap', '--version'],
+            'nikto': ['nikto', '-h'],
+            'dirb': ['dirb'],
+            'sqlmap': ['sqlmap', '--version'],
+            'whatweb': ['whatweb', '--version'],
+            'subfinder': ['subfinder', '-version'],
+            'gobuster': ['gobuster', 'version'],
+            'sslscan': ['sslscan', '--version']
+        }
+        
+        for tool, cmd in tool_commands.items():
             try:
-                subprocess.run([tool, '--version'], capture_output=True, timeout=5)
+                result = subprocess.run(cmd, capture_output=True, timeout=5)
+                # Tool is available if it doesn't fail with FileNotFoundError
                 tools[tool] = True
-            except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+            except FileNotFoundError:
+                # Tool not found
                 tools[tool] = False
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                # Tool exists but command failed - still consider it available
+                tools[tool] = True
         
         return tools
     
